@@ -188,6 +188,104 @@ export function createSyncListener(opts = {}) {
   return { start, stop, state };
 }
 
+// --- Chat list sidebar (Task 3.5) ---------------------------------------
+//
+// Loads GET /chats and renders one .chat-list-item per chat into #chat-list:
+// avatar (initials), name, last-message timestamp, and an unread badge.
+// Note: the Chat record has no stored message-preview text (see backend
+// Chat type), so the preview line shows the unread count instead of a
+// message snippet — there is no snippet to show without inventing one.
+
+/** First letters of up to two words in `name`, uppercased — used as the avatar glyph. */
+export function chatInitials(name) {
+  if (!name) return "?";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  const first = words[0][0] ?? "";
+  const second = words.length > 1 ? (words[1][0] ?? "") : "";
+  return (first + second).toUpperCase();
+}
+
+/** Formats a unix-ms timestamp as a short local time/date string, "" if null. */
+export function formatChatTimestamp(ms) {
+  if (ms === null || ms === undefined) return "";
+  const date = new Date(ms);
+  const now = new Date(Date.now());
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  if (sameDay) {
+    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString("pt-BR");
+}
+
+/** Builds one .chat-list-item element for `chat` (plain data object matching the Chat type). */
+export function renderChatListItem(doc, chat, onSelect) {
+  const item = doc.createElement("div");
+  item.className = "chat-list-item";
+  item.setAttribute("role", "button");
+  item.setAttribute("tabindex", "0");
+  item.dataset.jid = chat.jid;
+  item.setAttribute("aria-selected", "false");
+
+  const avatar = doc.createElement("div");
+  avatar.className = "chat-avatar";
+  avatar.setAttribute("aria-hidden", "true");
+  avatar.textContent = chatInitials(chat.name);
+
+  const meta = doc.createElement("div");
+  meta.className = "chat-list-meta";
+
+  const name = doc.createElement("div");
+  name.className = "chat-list-name";
+  name.textContent = chat.name;
+
+  const preview = doc.createElement("div");
+  preview.className = "chat-list-preview";
+  preview.textContent =
+    chat.unread_count > 0
+      ? `${chat.unread_count} mensagem${chat.unread_count === 1 ? "" : "s"} não lida${chat.unread_count === 1 ? "" : "s"}`
+      : "";
+
+  meta.append(name, preview);
+
+  const timestamp = doc.createElement("div");
+  timestamp.className = "chat-list-timestamp";
+  timestamp.textContent = formatChatTimestamp(chat.last_message_at);
+
+  item.append(avatar, meta, timestamp);
+
+  const select = () => onSelect?.(chat);
+  item.addEventListener("click", select);
+  item.addEventListener("keydown", (evt) => {
+    if (evt.key === "Enter" || evt.key === " ") {
+      evt.preventDefault();
+      select();
+    }
+  });
+
+  return item;
+}
+
+/** Fetches GET /chats and renders the sidebar list into #chat-list. */
+export async function loadChatList(opts = {}) {
+  const fetchFn = opts.fetch ?? (typeof fetch !== "undefined" ? fetch.bind(globalThis) : undefined);
+  const doc = opts.document ?? (typeof document !== "undefined" ? document : undefined);
+  const onSelect = opts.onSelect;
+
+  const res = await fetchFn("/chats");
+  const data = await res.json();
+  const chats = data.chats ?? [];
+
+  const list = doc.getElementById("chat-list");
+  if (list) {
+    list.replaceChildren(...chats.map((chat) => renderChatListItem(doc, chat, onSelect)));
+  }
+  return chats;
+}
+
 // Real browsers only — skip auto-start under jsdom (unit tests import this module
 // directly and drive router/poller/listener manually with injected fakes).
 function isRealBrowser() {
@@ -201,4 +299,5 @@ function isRealBrowser() {
 if (isRealBrowser()) {
   initRouter();
   createQrPoller().start();
+  void loadChatList();
 }
