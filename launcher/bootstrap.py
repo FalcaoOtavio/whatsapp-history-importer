@@ -86,6 +86,54 @@ def check_prerequisites(version_info=None, runner=subprocess.run) -> list[CheckR
     return [check_python_version(version_info), check_node_version(runner)]
 
 
+def _venv_python(venv_dir: Path) -> Path:
+    if sys.platform == "win32":
+        return venv_dir / "Scripts" / "python.exe"
+    return venv_dir / "bin" / "python"
+
+
+def ensure_venv(
+    venv_dir: Path = VENV_DIR,
+    requirements_file: Path = REQUIREMENTS_FILE,
+    runner=subprocess.run,
+    venv_creator=None,
+) -> CheckResult:
+    """Create the venv and pip-install requirements if not already done.
+
+    Idempotent: if the venv exists AND a marker matching the requirements file's
+    mtime+size is present, does nothing. Otherwise (re)installs requirements.
+    `venv_creator(venv_dir)` is injectable for tests; defaults to stdlib `venv`.
+    """
+    marker = venv_dir / ".requirements-installed"
+    req_stamp = ""
+    if requirements_file.is_file():
+        stat = requirements_file.stat()
+        req_stamp = f"{stat.st_mtime_ns}:{stat.st_size}"
+
+    if venv_dir.is_dir() and marker.is_file() and marker.read_text() == req_stamp:
+        return CheckResult(ok=True, message="Ambiente virtual já configurado e atualizado.")
+
+    if not venv_dir.is_dir():
+        if venv_creator is None:
+            import venv as venv_module
+
+            venv_module.create(venv_dir, with_pip=True)
+        else:
+            venv_creator(venv_dir)
+
+    python_bin = _venv_python(venv_dir)
+    try:
+        runner(
+            [str(python_bin), "-m", "pip", "install", "-q", "-r", str(requirements_file)],
+            check=True,
+        )
+    except (subprocess.CalledProcessError, OSError) as exc:
+        return CheckResult(ok=False, message=f"Falha ao instalar dependências Python: {exc}")
+
+    marker.write_text(req_stamp)
+    return CheckResult(ok=True, message="Ambiente virtual criado e dependências instaladas.")
+
+
 def ensure_node_deps(runner=subprocess.run, backend_dir: Path = BACKEND_DIR) -> CheckResult:
     """Run `npm ci` in backend/ if node_modules is missing."""
     node_modules = backend_dir / "node_modules"

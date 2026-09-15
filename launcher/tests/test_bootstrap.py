@@ -8,6 +8,7 @@ from launcher.bootstrap import (
     check_node_version,
     check_python_version,
     ensure_node_deps,
+    ensure_venv,
 )
 
 
@@ -80,3 +81,55 @@ def test_ensure_node_deps_reports_failure(tmp_path: Path):
     result = ensure_node_deps(runner=runner, backend_dir=backend_dir)
 
     assert result.ok is False
+
+
+def test_ensure_venv_creates_and_installs_when_missing(tmp_path: Path):
+    venv_dir = tmp_path / ".venv"
+    req_file = tmp_path / "requirements.txt"
+    req_file.write_text("pywebview\n")
+    runner = MagicMock()
+    creator = MagicMock(side_effect=lambda d: d.mkdir(parents=True))
+
+    result = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=creator)
+
+    assert result.ok is True
+    creator.assert_called_once_with(venv_dir)
+    assert runner.call_count == 1
+    assert (venv_dir / ".requirements-installed").is_file()
+
+
+def test_ensure_venv_idempotent_when_up_to_date(tmp_path: Path):
+    venv_dir = tmp_path / ".venv"
+    venv_dir.mkdir()
+    req_file = tmp_path / "requirements.txt"
+    req_file.write_text("pywebview\n")
+    runner = MagicMock()
+    creator = MagicMock()
+
+    # First run installs and writes the marker.
+    first = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=creator)
+    assert first.ok is True
+    assert runner.call_count == 1
+
+    # Second run: venv exists, requirements unchanged -> no reinstall, no recreate.
+    second = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=creator)
+    assert second.ok is True
+    assert runner.call_count == 1  # not called again
+    creator.assert_not_called()
+
+
+def test_ensure_venv_reinstalls_when_requirements_change(tmp_path: Path):
+    venv_dir = tmp_path / ".venv"
+    venv_dir.mkdir()
+    req_file = tmp_path / "requirements.txt"
+    req_file.write_text("pywebview\n")
+    runner = MagicMock()
+
+    first = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=MagicMock())
+    assert first.ok is True
+    assert runner.call_count == 1
+
+    req_file.write_text("pywebview\napscheduler\n")  # changed content -> new mtime/size
+    second = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=MagicMock())
+    assert second.ok is True
+    assert runner.call_count == 2
