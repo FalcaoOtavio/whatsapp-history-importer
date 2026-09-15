@@ -71,3 +71,79 @@ def test_launch_app_stops_sidecar_even_if_webview_start_raises():
         launch_app(webview_module=fake_webview, bridge_factory=bridge_factory)
 
     fake_bridge.stop_sidecar.assert_called_once()
+
+
+def test_launch_app_starts_daily_scheduler_bound_to_bridge_sync():
+    fake_webview = MagicMock()
+    fake_bridge = MagicMock()
+    fake_scheduler = MagicMock()
+    scheduler_factory = MagicMock(return_value=fake_scheduler)
+
+    launch_app(
+        webview_module=fake_webview,
+        bridge_factory=MagicMock(return_value=fake_bridge),
+        scheduler_factory=scheduler_factory,
+    )
+
+    scheduler_factory.assert_called_once()
+    # The scheduler must call the live bridge's trigger_sync, not a stub.
+    assert scheduler_factory.call_args[0][0] == fake_bridge.trigger_sync
+
+
+def test_launch_app_shuts_down_scheduler_when_window_closes():
+    fake_webview = MagicMock()
+    fake_scheduler = MagicMock()
+
+    launch_app(
+        webview_module=fake_webview,
+        bridge_factory=MagicMock(return_value=MagicMock()),
+        scheduler_factory=MagicMock(return_value=fake_scheduler),
+    )
+
+    fake_scheduler.shutdown.assert_called_once()
+
+
+def test_launch_app_shuts_down_scheduler_even_if_webview_start_raises():
+    fake_webview = MagicMock()
+    fake_webview.start.side_effect = RuntimeError("window crashed")
+    fake_scheduler = MagicMock()
+
+    with pytest.raises(RuntimeError):
+        launch_app(
+            webview_module=fake_webview,
+            bridge_factory=MagicMock(return_value=MagicMock()),
+            scheduler_factory=MagicMock(return_value=fake_scheduler),
+        )
+
+    fake_scheduler.shutdown.assert_called_once()
+
+
+def test_launch_app_announces_next_run_in_ptbr(capsys):
+    fake_webview = MagicMock()
+    fake_scheduler = MagicMock()
+    fake_scheduler.next_run_message.return_value = "Próxima sincronização: 11/03/2026 às 01:00 (-03)"
+
+    launch_app(
+        webview_module=fake_webview,
+        bridge_factory=MagicMock(return_value=MagicMock()),
+        scheduler_factory=MagicMock(return_value=fake_scheduler),
+    )
+
+    out = capsys.readouterr().out
+    assert "Próxima sincronização: 11/03/2026 às 01:00" in out
+
+
+def test_launch_app_survives_scheduler_start_failure(capsys):
+    """A scheduler that refuses to start must not block the window from opening —
+    the app is still usable for browsing history and manual syncs."""
+    fake_webview = MagicMock()
+    scheduler_factory = MagicMock(side_effect=RuntimeError("no timer available"))
+
+    launch_app(
+        webview_module=fake_webview,
+        bridge_factory=MagicMock(return_value=MagicMock()),
+        scheduler_factory=scheduler_factory,
+    )
+
+    fake_webview.start.assert_called_once()
+    assert "agendador" in capsys.readouterr().out.lower()
