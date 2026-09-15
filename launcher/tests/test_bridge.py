@@ -57,11 +57,16 @@ def test_wait_until_ready_false_on_timeout():
     assert bridge.wait_until_ready(timeout=0.3, poll_interval=0.1) is False
 
 
+def _fake_ffmpeg(path: str | None = "/fake/ffmpeg", ok: bool = True):
+    """Stands in for bootstrap.ensure_ffmpeg so tests never hit the network."""
+    return MagicMock(return_value=MagicMock(ok=ok, ffmpeg_path=path))
+
+
 def test_start_sidecar_spawns_node_with_port_env():
     bridge = SidecarBridge(port=54321)
     fake_popen = MagicMock(return_value=MagicMock())
 
-    bridge.start_sidecar(popen=fake_popen)
+    bridge.start_sidecar(popen=fake_popen, ffmpeg_locator=_fake_ffmpeg())
 
     fake_popen.assert_called_once()
     args, kwargs = fake_popen.call_args
@@ -69,11 +74,49 @@ def test_start_sidecar_spawns_node_with_port_env():
     assert args[0][0] == "node"
 
 
+def test_start_sidecar_passes_ffmpeg_path_to_node():
+    """The static ffmpeg lives in the venv, not on PATH, so the sidecar can only
+    find it if the launcher hands the absolute path over as FFMPEG_PATH."""
+    bridge = SidecarBridge(port=54321)
+    fake_popen = MagicMock(return_value=MagicMock())
+
+    bridge.start_sidecar(
+        popen=fake_popen,
+        ffmpeg_locator=_fake_ffmpeg("/venv/static_ffmpeg/bin/ffmpeg"),
+    )
+
+    assert fake_popen.call_args[1]["env"]["FFMPEG_PATH"] == "/venv/static_ffmpeg/bin/ffmpeg"
+
+
+def test_start_sidecar_starts_without_ffmpeg():
+    """No ffmpeg means no thumbnails, but browsing history must still work."""
+    bridge = SidecarBridge(port=54321)
+    fake_popen = MagicMock(return_value=MagicMock())
+
+    bridge.start_sidecar(popen=fake_popen, ffmpeg_locator=_fake_ffmpeg(None, ok=False))
+
+    fake_popen.assert_called_once()
+    assert "FFMPEG_PATH" not in fake_popen.call_args[1]["env"]
+
+
+def test_start_sidecar_survives_ffmpeg_locator_failure():
+    bridge = SidecarBridge(port=54321)
+    fake_popen = MagicMock(return_value=MagicMock())
+
+    bridge.start_sidecar(
+        popen=fake_popen,
+        ffmpeg_locator=MagicMock(side_effect=RuntimeError("download failed")),
+    )
+
+    fake_popen.assert_called_once()
+    assert "FFMPEG_PATH" not in fake_popen.call_args[1]["env"]
+
+
 def test_stop_sidecar_terminates_process():
     bridge = SidecarBridge(port=54321)
     fake_process = MagicMock()
     fake_popen = MagicMock(return_value=fake_process)
-    bridge.start_sidecar(popen=fake_popen)
+    bridge.start_sidecar(popen=fake_popen, ffmpeg_locator=_fake_ffmpeg())
 
     bridge.stop_sidecar()
 

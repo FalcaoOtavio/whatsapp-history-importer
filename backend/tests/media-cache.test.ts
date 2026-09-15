@@ -8,6 +8,13 @@ import {
   cacheMediaThumbnail,
   cacheVideoThumbnail,
 } from "../src/media-cache.js";
+import { FFMPEG_PATH } from "./ffmpeg-path.js";
+
+// ffmpeg is downloaded on demand by the launcher, so a machine that has not
+// bootstrapped yet (or ran `initial.py --check --skip-ffmpeg`) legitimately has
+// none. Skip those two cases instead of failing with ENOENT; everything that
+// does not shell out still runs.
+const itWithFfmpeg = FFMPEG_PATH ? it : it.skip;
 
 const FIXTURES = path.resolve(import.meta.dirname, "fixtures");
 
@@ -38,9 +45,10 @@ describe("media-cache", () => {
     expect(metadata.height).toBe(200);
   }, 15000);
 
-  it("extracts a frame from a video and caches it as a 200x200 webp thumbnail", async () => {
+  itWithFfmpeg("extracts a frame from a video and caches it as a 200x200 webp thumbnail", async () => {
     const { thumbPath } = await cacheVideoThumbnail("m2", path.join(FIXTURES, "fixture.mp4"), {
       cacheDir,
+      ffmpegPath: FFMPEG_PATH ?? undefined,
     });
 
     expect(thumbPath).toBe(path.join(cacheDir, "m2.webp"));
@@ -54,9 +62,10 @@ describe("media-cache", () => {
     expect(metadata.height).toBe(200);
   }, 15000);
 
-  it("renders an 800x100 waveform PNG for audio", async () => {
+  itWithFfmpeg("renders an 800x100 waveform PNG for audio", async () => {
     const { thumbPath } = await cacheAudioWaveform("m3", path.join(FIXTURES, "fixture.wav"), {
       cacheDir,
+      ffmpegPath: FFMPEG_PATH ?? undefined,
     });
 
     expect(thumbPath).toBe(path.join(cacheDir, "m3.waveform.png"));
@@ -69,6 +78,53 @@ describe("media-cache", () => {
     expect(metadata.width).toBe(800);
     expect(metadata.height).toBe(100);
   }, 15000);
+
+  it("uses the configured ffmpeg binary rather than assuming one on PATH", async () => {
+    // The static ffmpeg the launcher downloads lives in the venv, not on PATH,
+    // so an absolute path must reach execFile verbatim for both media kinds.
+    const calls: string[] = [];
+    // Stands in for ffmpeg: records the binary and writes the frame the video
+    // path then reads back, so no real ffmpeg is needed to assert resolution.
+    const execRunner = async (cmd: string, args: string[]) => {
+      calls.push(cmd);
+      const output = args[args.length - 1];
+      await fs.writeFile(output, Buffer.from("fake-frame"));
+    };
+
+    await cacheAudioWaveform("m6", path.join(FIXTURES, "fixture.wav"), {
+      cacheDir,
+      execRunner,
+      ffmpegPath: "/opt/whi/ffmpeg",
+    });
+
+    await cacheVideoThumbnail("m7", path.join(FIXTURES, "fixture.mp4"), {
+      cacheDir,
+      execRunner,
+      ffmpegPath: "/opt/whi/ffmpeg",
+      imageThumbnailer: async () => Buffer.from("stub"),
+    });
+
+    expect(calls).toEqual(["/opt/whi/ffmpeg", "/opt/whi/ffmpeg"]);
+  });
+
+  it("falls back to FFMPEG_PATH from the environment", async () => {
+    const original = process.env.FFMPEG_PATH;
+    process.env.FFMPEG_PATH = "/env/ffmpeg";
+    try {
+      const calls: string[] = [];
+      await cacheAudioWaveform("m8", path.join(FIXTURES, "fixture.wav"), {
+        cacheDir,
+        execRunner: async (cmd: string, args: string[]) => {
+          calls.push(cmd);
+          await fs.writeFile(args[args.length - 1], Buffer.from("fake-waveform"));
+        },
+      });
+      expect(calls).toEqual(["/env/ffmpeg"]);
+    } finally {
+      if (original === undefined) delete process.env.FFMPEG_PATH;
+      else process.env.FFMPEG_PATH = original;
+    }
+  });
 
   it("dispatches to the right thumbnailer via cacheMediaThumbnail", async () => {
     const { thumbPath } = await cacheMediaThumbnail(

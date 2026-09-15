@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import { createBaileysClient, type BaileysClient } from "./baileys-client.js";
 import { attachHistorySync } from "./history-sync.js";
+import { createMediaQueue, type MediaQueue } from "./media-downloader.js";
 import { createSyncDriver } from "./sync-driver.js";
 import { openDb, type SqliteDb } from "./db/sqlite.js";
 import { createPostgresWriter } from "./db/postgres.js";
@@ -20,6 +21,10 @@ export interface ServerDeps {
   databaseUrl?: string;
   /** MongoDB connection string. Defaults to process.env.MONGODB_URL (opt-in, no-op if unset). */
   mongoUrl?: string;
+  /** Where downloaded media is written. Defaults to `.media/` in cwd. */
+  mediaDir?: string;
+  /** Override the media queue - tests inject one with a fake downloader. */
+  mediaQueue?: MediaQueue;
 }
 
 export interface ServerHandle {
@@ -27,6 +32,8 @@ export interface ServerHandle {
   db: SqliteDb;
   client: BaileysClient;
   broadcaster: SyncBroadcaster;
+  /** Serialised media downloads fed by history sync. `drain()` in tests. */
+  mediaQueue: MediaQueue;
 }
 
 /** Wires DB + Baileys client + all routes together. Does not connect() or listen() - callers do that. */
@@ -38,7 +45,14 @@ export function createServerHandle(deps: ServerDeps = {}): ServerHandle {
   const postgres = createPostgresWriter(deps.databaseUrl ?? process.env.DATABASE_URL);
   const mongo = createMongoWriter(deps.mongoUrl ?? process.env.MONGODB_URL);
 
+  // History carries media metadata only; the bytes are fetched afterwards so a
+  // huge batch does not open thousands of CDN connections at once.
+  const mediaQueue = deps.mediaQueue ?? createMediaQueue(db, { mediaDir: deps.mediaDir });
+
   attachHistorySync(client, db, {
+    onMessage: (message, raw) => {
+      mediaQueue.enqueue(message, raw);
+    },
     onBatch: (result, payload) => {
       for (const chat of payload.chats ?? []) {
         void postgres.writeChat(toChatForMirror(chat));
@@ -69,7 +83,7 @@ export function createServerHandle(deps: ServerDeps = {}): ServerHandle {
     void syncDriver.run();
   });
 
-  return { app, db, client, broadcaster };
+  return { app, db, client, broadcaster, mediaQueue };
 }
 
 // Mirrors only need enough shape to reuse the writers' upsert-by-jid semantics;

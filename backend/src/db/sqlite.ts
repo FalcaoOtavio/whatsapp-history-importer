@@ -63,6 +63,26 @@ export function getMessage(db: SqliteDb, id: string): Message | undefined {
   return db.prepare("SELECT * FROM messages WHERE id = ?").get(id) as Message | undefined;
 }
 
+/**
+ * Records where a message's media and thumbnail were written.
+ *
+ * Messages are inserted from history with both paths null - the bytes are
+ * fetched afterwards (see media-downloader.ts), so this fills them in once the
+ * download lands.
+ */
+export function setMediaPaths(
+  db: SqliteDb,
+  id: string,
+  mediaPath: string | null,
+  thumbPath: string | null,
+): void {
+  db.prepare("UPDATE messages SET media_path = ?, media_thumb_path = ? WHERE id = ?").run(
+    mediaPath,
+    thumbPath,
+    id,
+  );
+}
+
 export function listMessages(
   db: SqliteDb,
   chatJid: string,

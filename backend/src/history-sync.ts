@@ -62,6 +62,14 @@ export interface HistorySyncOptions {
   /** Called after each batch is persisted - lets callers (e.g. server.ts) mirror to
    * optional writers and emit sync progress events. */
   onBatch?: (result: HistorySyncResult, payload: HistorySyncPayload) => void;
+  /**
+   * Called for every message actually written, with the parsed row and the raw
+   * Baileys `message` node it came from. History only carries media *metadata*,
+   * so the bytes have to be fetched separately - server.ts hangs the media
+   * download queue off this hook. Must not throw and must not block: it runs
+   * inside the synchronous batch loop.
+   */
+  onMessage?: (message: Message, raw: Record<string, unknown> | null | undefined) => void;
 }
 
 export interface HistorySyncResult {
@@ -253,6 +261,7 @@ export function processHistorySyncPayload(
     }
     ensureChatExists(db, message.chat_jid, nowMs);
     insertMessage(db, message);
+    opts.onMessage?.(message, rawMessage.message);
     messagesWritten++;
   }
 

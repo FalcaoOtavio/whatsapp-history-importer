@@ -144,4 +144,38 @@ describe("server", () => {
     expect(res.body.messages).toHaveLength(1);
     expect(res.body.messages[0].text).toBe("hey");
   });
+
+  it("queues media downloads for messages arriving from history sync", async () => {
+    // Without this wiring media_path stays null forever and GET /media/:msgId
+    // answers 404 for every message in the archive.
+    const db = openDb(":memory:");
+    const listeners: ((payload: unknown) => void)[] = [];
+    const client = makeFakeClient({
+      onHistorySync(listener) {
+        listeners.push(listener);
+      },
+    });
+    const queued: string[] = [];
+    const mediaQueue = {
+      enqueue: (message: { id: string }) => queued.push(message.id),
+      drain: async () => {},
+      pending: 0,
+    };
+
+    createServerHandle({ db, client, mediaQueue });
+
+    for (const listener of listeners) {
+      listener({
+        messages: [
+          {
+            key: { remoteJid: "c@s.whatsapp.net", fromMe: false, id: "img9" },
+            message: { imageMessage: { mimetype: "image/jpeg" } },
+            messageTimestamp: Math.floor(Date.now() / 1000),
+          },
+        ],
+      });
+    }
+
+    expect(queued).toEqual(["img9"]);
+  });
 });

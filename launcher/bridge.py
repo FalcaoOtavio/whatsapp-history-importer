@@ -29,12 +29,34 @@ class SidecarBridge:
         entry: Path | None = None,
         env: dict | None = None,
         popen=subprocess.Popen,
+        ffmpeg_locator=None,
     ) -> subprocess.Popen:
-        """Spawn `node dist/server.js PORT` and remember the process handle."""
+        """Spawn `node dist/server.js PORT` and remember the process handle.
+
+        The sidecar shells out to ffmpeg for video thumbnails and audio
+        waveforms, but the static ffmpeg the launcher downloads lives inside the
+        venv and is never added to PATH — so its location is passed explicitly
+        as FFMPEG_PATH. `ffmpeg_locator` is injectable for tests.
+        """
         entry = entry or (BACKEND_DIR / "dist" / "server.js")
         import os
 
         full_env = {**os.environ, "PORT": str(self.port)}
+
+        if ffmpeg_locator is None:
+            from launcher.bootstrap import ensure_ffmpeg
+
+            ffmpeg_locator = ensure_ffmpeg
+
+        # A missing ffmpeg is not fatal: everything except thumbnails and
+        # waveforms still works, so the sidecar starts either way.
+        try:
+            ffmpeg_result = ffmpeg_locator()
+            if ffmpeg_result.ok and ffmpeg_result.ffmpeg_path:
+                full_env["FFMPEG_PATH"] = ffmpeg_result.ffmpeg_path
+        except Exception as exc:  # noqa: BLE001 - see comment above
+            print(f"ffmpeg indisponível; miniaturas serão ignoradas: {exc}")
+
         if env:
             full_env.update(env)
 
