@@ -39,15 +39,44 @@ def create_window(port: int, webview_module=None):
     )
 
 
-def launch_app(webview_module=None, sidecar_starter=None):
-    """Full launch: pick a port, start the sidecar, open the window, block until closed."""
+def launch_app(webview_module=None, sidecar_starter=None, bridge_factory=None):
+    """Full launch: pick a port, start the sidecar, open the window, block until closed.
+
+    On window close (or Ctrl-C), the sidecar process is terminated gracefully.
+    `sidecar_starter(port)` is injectable for tests; defaults to spawning the
+    real Node process via `SidecarBridge.start_sidecar`.
+    `bridge_factory` (used only when `sidecar_starter` is None) is injectable
+    for tests and defaults to `SidecarBridge`.
+    """
     port = find_free_port()
+
+    if bridge_factory is None:
+        from launcher.bridge import SidecarBridge
+
+        bridge_factory = SidecarBridge
+
+    bridge = bridge_factory(port)
 
     if sidecar_starter is not None:
         sidecar_starter(port)
+    else:
+        bridge.start_sidecar()
+        bridge.wait_until_ready()
 
     if webview_module is None:
         import webview as webview_module
 
-    create_window(port, webview_module=webview_module)
-    webview_module.start()
+    window = create_window(port, webview_module=webview_module)
+
+    def _on_closed():
+        bridge.stop_sidecar()
+
+    closed_event = getattr(window, "events", None)
+    closed_event = getattr(closed_event, "closed", None) if closed_event else None
+    if closed_event is not None:
+        closed_event += _on_closed
+
+    try:
+        webview_module.start()
+    finally:
+        bridge.stop_sidecar()

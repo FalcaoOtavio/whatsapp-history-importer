@@ -3,6 +3,8 @@ from __future__ import annotations
 import socket
 from unittest.mock import MagicMock
 
+import pytest
+
 from launcher.window import build_url, create_window, find_free_port, launch_app
 
 
@@ -44,3 +46,28 @@ def test_launch_app_starts_sidecar_on_chosen_port_then_opens_window():
     assert 1024 < used_port < 65536
     fake_webview.create_window.assert_called_once()
     fake_webview.start.assert_called_once()
+
+
+def test_launch_app_starts_and_stops_bridge_by_default():
+    fake_webview = MagicMock()
+    fake_bridge = MagicMock()
+    bridge_factory = MagicMock(return_value=fake_bridge)
+
+    launch_app(webview_module=fake_webview, bridge_factory=bridge_factory)
+
+    fake_bridge.start_sidecar.assert_called_once()
+    fake_bridge.wait_until_ready.assert_called_once()
+    fake_webview.start.assert_called_once()
+    fake_bridge.stop_sidecar.assert_called_once()
+
+
+def test_launch_app_stops_sidecar_even_if_webview_start_raises():
+    fake_webview = MagicMock()
+    fake_webview.start.side_effect = RuntimeError("window crashed")
+    fake_bridge = MagicMock()
+    bridge_factory = MagicMock(return_value=fake_bridge)
+
+    with pytest.raises(RuntimeError):
+        launch_app(webview_module=fake_webview, bridge_factory=bridge_factory)
+
+    fake_bridge.stop_sidecar.assert_called_once()

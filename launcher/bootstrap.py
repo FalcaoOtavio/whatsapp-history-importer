@@ -77,7 +77,10 @@ def check_node_version(runner=subprocess.run) -> CheckResult:
         return CheckResult(ok=True, message=f"Node.js {result.stdout.strip()} encontrado (mínimo {MIN_NODE}).")
     return CheckResult(
         ok=False,
-        message=f"Node.js {result.stdout.strip()} é muito antigo. É necessário Node.js {MIN_NODE} ou mais recente.",
+        message=(
+            f"Node.js {result.stdout.strip()} é muito antigo. "
+            f"É necessário Node.js {MIN_NODE} ou mais recente."
+        ),
     )
 
 
