@@ -286,6 +286,129 @@ export async function loadChatList(opts = {}) {
   return chats;
 }
 
+// --- Chat view bubbles (Task 3.6) ---------------------------------------
+//
+// Loads GET /messages?chatId= for a selected chat and renders one .message
+// bubble per message into #message-list: inbound (from_me=0) on the left in
+// gray (.message-in), outbound (from_me=1) on the right in green
+// (.message-out). Media messages (image/video/audio/document) point their
+// source at GET /media/:msgId.
+
+/** Formats a unix-ms/seconds-ish timestamp as a short local time string. */
+export function formatMessageTimestamp(ts) {
+  if (ts === null || ts === undefined) return "";
+  // Backend timestamps observed as unix ms in fixtures/tests; treat as ms directly.
+  return new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function appendTimestamp(doc, bubble, message) {
+  const ts = doc.createElement("span");
+  ts.className = "message-timestamp";
+  ts.textContent = formatMessageTimestamp(message.timestamp);
+  bubble.appendChild(ts);
+}
+
+function buildMediaBody(doc, message) {
+  const mediaUrl = `/media/${encodeURIComponent(message.id)}`;
+
+  switch (message.type) {
+    case "image": {
+      const wrap = doc.createElement("div");
+      wrap.className = "message-media";
+      const img = doc.createElement("img");
+      img.src = mediaUrl;
+      img.alt = message.text ?? "Imagem";
+      wrap.appendChild(img);
+      return wrap;
+    }
+    case "video": {
+      const wrap = doc.createElement("div");
+      wrap.className = "message-media";
+      const video = doc.createElement("video");
+      video.src = mediaUrl;
+      const overlay = doc.createElement("div");
+      overlay.className = "message-media-play-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.textContent = "▶";
+      wrap.append(video, overlay);
+      return wrap;
+    }
+    case "audio": {
+      const wrap = doc.createElement("div");
+      wrap.className = "message-audio";
+      const audio = doc.createElement("audio");
+      audio.setAttribute("controls", "");
+      audio.src = mediaUrl;
+      const waveform = doc.createElement("div");
+      waveform.className = "message-waveform";
+      waveform.setAttribute("aria-hidden", "true");
+      wrap.append(audio, waveform);
+      return wrap;
+    }
+    case "document": {
+      const wrap = doc.createElement("div");
+      wrap.className = "message-document";
+      const link = doc.createElement("a");
+      link.href = mediaUrl;
+      link.className = "message-document-filename";
+      link.textContent = message.text || "Documento";
+      wrap.appendChild(link);
+      return wrap;
+    }
+    default:
+      return null;
+  }
+}
+
+/** Builds one .message bubble element for `message` (matching the backend Message type). */
+export function renderMessageBubble(doc, message) {
+  const bubble = doc.createElement("div");
+  bubble.className = `message ${message.from_me ? "message-out" : "message-in"}`;
+  bubble.dataset.messageId = message.id;
+  bubble.dataset.messageType = message.type;
+
+  const mediaBody = buildMediaBody(doc, message);
+  if (mediaBody) {
+    bubble.appendChild(mediaBody);
+    if (message.type === "document" && message.text) {
+      // filename already shown by buildMediaBody; nothing further needed.
+    } else if (message.text && message.type === "image") {
+      const caption = doc.createElement("div");
+      caption.className = "message-text";
+      caption.textContent = message.text;
+      bubble.appendChild(caption);
+    }
+  } else {
+    const text = doc.createElement("div");
+    text.className = "message-text";
+    text.textContent = message.text ?? "";
+    bubble.appendChild(text);
+  }
+
+  appendTimestamp(doc, bubble, message);
+  return bubble;
+}
+
+/** Fetches GET /messages?chatId= and renders bubbles into #message-list. */
+export async function loadChatMessages(chatJid, opts = {}) {
+  const fetchFn = opts.fetch ?? (typeof fetch !== "undefined" ? fetch.bind(globalThis) : undefined);
+  const doc = opts.document ?? (typeof document !== "undefined" ? document : undefined);
+
+  const res = await fetchFn(`/messages?chatId=${encodeURIComponent(chatJid)}`);
+  const data = await res.json();
+  const messages = data.messages ?? [];
+
+  const list = doc.getElementById("message-list");
+  const empty = doc.getElementById("chat-view-empty");
+  if (list) {
+    list.replaceChildren(...messages.map((message) => renderMessageBubble(doc, message)));
+  }
+  if (empty) {
+    empty.hidden = true;
+  }
+  return messages;
+}
+
 // Real browsers only — skip auto-start under jsdom (unit tests import this module
 // directly and drive router/poller/listener manually with injected fakes).
 function isRealBrowser() {
@@ -299,5 +422,13 @@ function isRealBrowser() {
 if (isRealBrowser()) {
   initRouter();
   createQrPoller().start();
-  void loadChatList();
+  void loadChatList({
+    onSelect: (chat) => {
+      const items = document.querySelectorAll("#chat-list .chat-list-item");
+      for (const el of items) {
+        el.setAttribute("aria-selected", el.dataset.jid === chat.jid ? "true" : "false");
+      }
+      void loadChatMessages(chat.jid);
+    },
+  });
 }
