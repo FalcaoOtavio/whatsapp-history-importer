@@ -402,11 +402,103 @@ export async function loadChatMessages(chatJid, opts = {}) {
   const empty = doc.getElementById("chat-view-empty");
   if (list) {
     list.replaceChildren(...messages.map((message) => renderMessageBubble(doc, message)));
+    scrollToBottom(list);
   }
   if (empty) {
     empty.hidden = true;
   }
   return messages;
+}
+
+// --- Chat scroll behavior (Task 3.7) ------------------------------------
+//
+// Auto-scrolls the message list to the bottom when a chat loads or a new
+// message arrives, and pages in older messages when the user scrolls to the
+// top ("infinite scroll up").
+//
+// Pagination param note: the plan's task sketch says the scroll-up fetch
+// carries `since`, but the backend's listMessages treats `since` as
+// "timestamp >= since ASC" (i.e. NEWER messages) and `until` as
+// "timestamp < until ORDER BY DESC" (i.e. OLDER messages). Loading older
+// history on scroll-up therefore uses `until`, anchored to the oldest
+// message currently rendered. See backend/src/db/sqlite.ts listMessages.
+
+const SCROLL_TOP_THRESHOLD_PX = 50;
+
+/** Pins the list to its bottom — newest message visible. */
+export function scrollToBottom(list) {
+  if (!list) return;
+  list.scrollTop = list.scrollHeight;
+}
+
+/** True when the list is scrolled (near) its top, i.e. older history should page in. */
+export function isAtTop(list, threshold = SCROLL_TOP_THRESHOLD_PX) {
+  if (!list) return false;
+  return list.scrollTop <= threshold;
+}
+
+/** Appends one newly-arrived message and keeps the view pinned to the bottom. */
+export function appendMessage(doc, message) {
+  const list = doc.getElementById("message-list");
+  if (!list) return null;
+  const bubble = renderMessageBubble(doc, message);
+  list.appendChild(bubble);
+  scrollToBottom(list);
+  return bubble;
+}
+
+/**
+ * Wires infinite-scroll-up on #message-list: when the user reaches the top,
+ * fetches older messages (anchored at the oldest rendered timestamp) and
+ * prepends them, preserving the user's scroll position.
+ */
+export function attachInfiniteScroll(chatJid, opts = {}) {
+  const fetchFn = opts.fetch ?? (typeof fetch !== "undefined" ? fetch.bind(globalThis) : undefined);
+  const doc = opts.document ?? (typeof document !== "undefined" ? document : undefined);
+  const list = doc.getElementById("message-list");
+  if (!list) return () => {};
+
+  let loading = false;
+  let exhausted = false;
+  let oldestTimestamp = opts.oldestTimestamp ?? null;
+
+  async function loadOlder() {
+    if (loading || exhausted) return [];
+    loading = true;
+    try {
+      const params = new URLSearchParams({ chatId: chatJid });
+      if (oldestTimestamp !== null) params.set("until", String(oldestTimestamp));
+
+      const res = await fetchFn(`/messages?${params.toString()}`);
+      const data = await res.json();
+      const older = data.messages ?? [];
+
+      if (older.length === 0) {
+        exhausted = true;
+        return [];
+      }
+
+      const heightBefore = list.scrollHeight;
+      // Backend returns older pages newest-first; prepend oldest-first so the
+      // rendered order stays chronological.
+      const ordered = [...older].sort((a, b) => a.timestamp - b.timestamp);
+      list.prepend(...ordered.map((message) => renderMessageBubble(doc, message)));
+      oldestTimestamp = ordered[0].timestamp;
+
+      // Keep the previously-visible message under the user's eye.
+      list.scrollTop = list.scrollHeight - heightBefore;
+      return ordered;
+    } finally {
+      loading = false;
+    }
+  }
+
+  const handler = () => {
+    if (isAtTop(list)) void loadOlder();
+  };
+
+  list.addEventListener("scroll", handler);
+  return { detach: () => list.removeEventListener("scroll", handler), loadOlder };
 }
 
 // Real browsers only — skip auto-start under jsdom (unit tests import this module
@@ -422,13 +514,19 @@ function isRealBrowser() {
 if (isRealBrowser()) {
   initRouter();
   createQrPoller().start();
+  let scroller = null;
   void loadChatList({
     onSelect: (chat) => {
       const items = document.querySelectorAll("#chat-list .chat-list-item");
       for (const el of items) {
         el.setAttribute("aria-selected", el.dataset.jid === chat.jid ? "true" : "false");
       }
-      void loadChatMessages(chat.jid);
+      scroller?.detach?.();
+      void loadChatMessages(chat.jid).then((messages) => {
+        scroller = attachInfiniteScroll(chat.jid, {
+          oldestTimestamp: messages.length > 0 ? messages[0].timestamp : null,
+        });
+      });
     },
   });
 }
