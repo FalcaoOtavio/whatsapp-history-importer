@@ -225,10 +225,14 @@ export function formatChatTimestamp(ms) {
 export function renderChatListItem(doc, chat, onSelect) {
   const item = doc.createElement("div");
   item.className = "chat-list-item";
-  item.setAttribute("role", "button");
+  // Inside #chat-list (role="listbox"), each chat is an option — that pairing is
+  // what lets screen readers announce "N of M" and keeps axe's required-children
+  // / required-parent rules satisfied.
+  item.setAttribute("role", "option");
   item.setAttribute("tabindex", "0");
   item.dataset.jid = chat.jid;
   item.setAttribute("aria-selected", "false");
+  item.setAttribute("aria-label", chat.name);
 
   const avatar = doc.createElement("div");
   avatar.className = "chat-avatar";
@@ -263,6 +267,16 @@ export function renderChatListItem(doc, chat, onSelect) {
     if (evt.key === "Enter" || evt.key === " ") {
       evt.preventDefault();
       select();
+      return;
+    }
+    // Arrow keys move focus between chats without leaving the list — the
+    // expected listbox interaction, and the only way to reach a chat far down
+    // the list without tabbing through every one above it.
+    if (evt.key === "ArrowDown" || evt.key === "ArrowUp") {
+      evt.preventDefault();
+      const sibling =
+        evt.key === "ArrowDown" ? item.nextElementSibling : item.previousElementSibling;
+      sibling?.focus?.();
     }
   });
 

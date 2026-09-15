@@ -20,7 +20,7 @@
         Seus dados ficam no seu computador.
       </p>
       <div class="qr-panel">
-        <img id="qr-image" class="qr-image" alt="QR code para conectar o WhatsApp" src="" hidden />
+        <img id="qr-image" class="qr-image" alt="QR code para conectar o WhatsApp" hidden />
         <p id="qr-placeholder">Aguardando QR code…</p>
         <ol class="qr-instructions">
           <li>Abra o WhatsApp no seu celular</li>
@@ -34,7 +34,13 @@
     <!-- View 2: Sync progress -->
     <section data-view="sync" id="view-sync" aria-labelledby="sync-heading" hidden>
       <h2 id="sync-heading">Sincronizando…</h2>
-      <progress id="sync-progress" class="sync-progress" max="100" value="0"></progress>
+      <progress
+        id="sync-progress"
+        class="sync-progress"
+        max="100"
+        value="0"
+        aria-label="Progresso da sincronização"
+      ></progress>
       <dl class="sync-counts">
         <dt>Conversas</dt>
         <dd id="sync-chat-count">0</dd>
@@ -47,10 +53,28 @@
     <section data-view="chats" id="view-chats" aria-labelledby="chats-heading" hidden>
       <h2 id="chats-heading" class="sr-only">Conversas</h2>
       <div class="chats-layout">
-        <aside id="chat-list" class="chat-list" aria-label="Lista de conversas"></aside>
-        <div id="chat-view" class="chat-view" aria-label="Conversa selecionada">
+        <div
+          id="chat-list"
+          class="chat-list"
+          role="listbox"
+          tabindex="0"
+          aria-label="Lista de conversas"
+        ></div>
+        <div
+          id="chat-view"
+          class="chat-view"
+          role="region"
+          aria-label="Conversa selecionada"
+        >
           <p id="chat-view-empty" class="chat-view-empty">Selecione uma conversa</p>
-          <div id="message-list" class="message-list"></div>
+          <div
+            id="message-list"
+            class="message-list"
+            role="log"
+            aria-live="polite"
+            aria-label="Mensagens da conversa"
+            tabindex="0"
+          ></div>
         </div>
       </div>
     </section>
