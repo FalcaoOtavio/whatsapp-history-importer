@@ -59,6 +59,9 @@ export interface HistorySyncOptions {
   nowMs?: number;
   /** Retention window in ms. Defaults to THREE_YEARS_MS. */
   maxAgeMs?: number;
+  /** Called after each batch is persisted - lets callers (e.g. server.ts) mirror to
+   * optional writers and emit sync progress events. */
+  onBatch?: (result: HistorySyncResult, payload: HistorySyncPayload) => void;
 }
 
 export interface HistorySyncResult {
@@ -83,7 +86,7 @@ function isGroupJid(jid: string): boolean {
   return jid.endsWith("@g.us");
 }
 
-function toChat(raw: BaileysChat, nowMs: number): Chat | null {
+export function toChat(raw: BaileysChat, nowMs: number): Chat | null {
   if (!raw.id) return null;
   return {
     jid: raw.id,
@@ -175,7 +178,7 @@ function parseMessageContent(msg: Record<string, any> | null | undefined): Parse
   return EMPTY_CONTENT;
 }
 
-function toMessage(raw: BaileysMessage, nowMs: number): Message | null {
+export function toMessage(raw: BaileysMessage, nowMs: number): Message | null {
   const chatJid = raw.key.remoteJid;
   const id = raw.key.id;
   const timestamp = toMillis(raw.messageTimestamp);
@@ -268,6 +271,8 @@ export function attachHistorySync(
   opts: HistorySyncOptions = {},
 ): void {
   client.onHistorySync((payload) => {
-    processHistorySyncPayload(db, payload as HistorySyncPayload, opts);
+    const typed = payload as HistorySyncPayload;
+    const result = processHistorySyncPayload(db, typed, opts);
+    opts.onBatch?.(result, typed);
   });
 }
