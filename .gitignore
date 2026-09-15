@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+backend/dist/
+*.tsbuildinfo
+npm-debug.log*
+
+# App data (never commit personal WhatsApp data)
+auth_info/
+.media/
+*.sqlite
+*.sqlite3
+*.db
+data/
+logs/
+*.log
+
+# Static binaries downloaded on demand
+bin/ffmpeg*
+bin/audiowaveform*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Env
+.env
+.env.local
