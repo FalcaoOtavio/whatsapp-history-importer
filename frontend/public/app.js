@@ -100,8 +100,96 @@ export function createQrPoller(opts = {}) {
   return { start, stop, poll };
 }
 
+// --- Sync progress via SSE (Task 3.4) -----------------------------------
+//
+// Opens an EventSource to GET /sync and renders progress into the "sync" view:
+// - #sync-progress <progress> value, as a percent estimate (total chat count
+//   is unknown up front, so each chat processed advances by a fixed step,
+//   capped short of 100% until sync.done sets it to exactly 100)
+// - #sync-chat-count: number of chats processed so far
+// - #sync-message-count: cumulative message count across processed chats
+
+const SYNC_PERCENT_STEP_PER_CHAT = 10;
+const SYNC_PERCENT_CAP_BEFORE_DONE = 95;
+
+/** Updates the sync view's progress bar + counters for one SSE event. Pure DOM + state. */
+export function applySyncEvent(doc, state, evt) {
+  switch (evt.event) {
+    case "sync.started":
+      state.chatsProcessed = 0;
+      state.messagesTotal = 0;
+      state.percent = 0;
+      break;
+    case "sync.chat":
+      state.chatsProcessed += 1;
+      state.messagesTotal += evt.total ?? 0;
+      state.percent = Math.min(
+        SYNC_PERCENT_CAP_BEFORE_DONE,
+        state.chatsProcessed * SYNC_PERCENT_STEP_PER_CHAT,
+      );
+      break;
+    case "sync.done":
+      state.percent = 100;
+      break;
+    default:
+      break;
+  }
+
+  const progress = doc.getElementById("sync-progress");
+  const chatCount = doc.getElementById("sync-chat-count");
+  const messageCount = doc.getElementById("sync-message-count");
+  if (progress) progress.value = state.percent;
+  if (chatCount) chatCount.textContent = String(state.chatsProcessed);
+  if (messageCount) messageCount.textContent = String(state.messagesTotal);
+
+  return state;
+}
+
+/**
+ * Opens an EventSource to /sync and wires each event into the sync view.
+ * Injectable EventSource/document constructor for testing.
+ */
+export function createSyncListener(opts = {}) {
+  const EventSourceCtor = opts.EventSource ?? (typeof EventSource !== "undefined" ? EventSource : undefined);
+  const doc = opts.document ?? (typeof document !== "undefined" ? document : undefined);
+  const state = { chatsProcessed: 0, messagesTotal: 0, percent: 0 };
+
+  let source = null;
+
+  function handleMessage(eventName) {
+    return (evt) => {
+      let data = {};
+      try {
+        data = evt.data ? JSON.parse(evt.data) : {};
+      } catch {
+        data = {};
+      }
+      applySyncEvent(doc, state, { event: eventName, ...data });
+      if (eventName === "sync.done") {
+        stop();
+      }
+    };
+  }
+
+  function start() {
+    source = new EventSourceCtor("/sync");
+    for (const name of ["sync.started", "sync.chat", "sync.message", "sync.done"]) {
+      source.addEventListener(name, handleMessage(name));
+    }
+  }
+
+  function stop() {
+    if (source) {
+      source.close();
+      source = null;
+    }
+  }
+
+  return { start, stop, state };
+}
+
 // Real browsers only — skip auto-start under jsdom (unit tests import this module
-// directly and drive router/poller manually with injected fakes).
+// directly and drive router/poller/listener manually with injected fakes).
 function isRealBrowser() {
   return (
     typeof window !== "undefined" &&
