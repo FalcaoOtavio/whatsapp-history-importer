@@ -22,7 +22,7 @@ Everything runs on your own machine.*
 | Requisito | Versão | Observação |
 | --- | --- | --- |
 | Python | ≥ 3.11 | usado pelo lançador e pelo agendador |
-| Node.js | ≥ 18 | usado pelo processo que fala com o WhatsApp |
+| Node.js | ≥ 22 | exigido pelo `better-sqlite3`; versões antigas travam |
 | ffmpeg | — | baixado automaticamente pelo `initial.py` |
 
 Testado em macOS e Linux.
@@ -131,7 +131,7 @@ node scripts/make-screenshot.mjs
 | Requirement | Version | Note |
 | --- | --- | --- |
 | Python | ≥ 3.11 | runs the launcher and the scheduler |
-| Node.js | ≥ 18 | runs the process that talks to WhatsApp |
+| Node.js | ≥ 22 | required by `better-sqlite3`; older versions crash |
 | ffmpeg | — | downloaded automatically by `initial.py` |
 
 Tested on macOS and Linux.

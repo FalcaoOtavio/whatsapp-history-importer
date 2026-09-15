@@ -29,10 +29,19 @@ def test_check_python_version_passes_on_311():
     assert result.ok is True
 
 
-def test_check_node_version_passes_on_20():
-    runner = MagicMock(return_value=MagicMock(stdout="v20.11.0\n"))
+def test_check_node_version_passes_on_22():
+    runner = MagicMock(return_value=MagicMock(stdout="v22.11.0\n"))
     result = check_node_version(runner=runner)
     assert result.ok is True
+
+
+def test_check_node_version_fails_on_20():
+    """better-sqlite3 needs Node >= 22: under 20 it segfaults on the first
+    query, so the check must reject 20 instead of letting the app crash."""
+    runner = MagicMock(return_value=MagicMock(stdout="v20.20.2\n"))
+    result = check_node_version(runner=runner)
+    assert result.ok is False
+    assert "20" in result.message
 
 
 def test_check_node_version_fails_on_16():

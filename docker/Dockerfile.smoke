@@ -1,0 +1,18 @@
+# Linux smoke test image.
+#
+# Debian 12 (bookworm) ships Python 3.11, and the node:22-bookworm image brings
+# Node 22 plus the build toolchain that better-sqlite3 needs. Node 22 is the
+# floor, not a preference: better-sqlite3 declares `engines: node >= 22` and
+# segfaults on the first query under Node 20. Only python3-venv is missing, so
+# that is the single apt package installed here.
+#
+# The image deliberately contains no project files: scripts/smoke-linux.sh
+# mounts a clean clone at /repo, so the run proves a fresh install works rather
+# than reusing anything from the dev machine.
+FROM node:22-bookworm
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /repo

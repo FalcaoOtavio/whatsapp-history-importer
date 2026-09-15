@@ -12,7 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MIN_PYTHON = (3, 11)
-MIN_NODE = 18
+# better-sqlite3 (backend/package.json) declares `engines: node >= 22`. Under
+# Node 20 its prebuilt binding loads but segfaults on the first query, so
+# anything below 22 is rejected here rather than crashing mid-sync.
+MIN_NODE = 22
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 VENV_DIR = REPO_ROOT / ".venv"
@@ -62,7 +65,7 @@ def check_node_version(runner=subprocess.run) -> CheckResult:
     if node_path is None:
         return CheckResult(
             ok=False,
-            message="Node.js não encontrado. Instale o Node.js 18 ou mais recente em nodejs.org.",
+            message=f"Node.js não encontrado. Instale o Node.js {MIN_NODE} ou mais recente em nodejs.org.",
         )
     try:
         result = runner([node_path, "--version"], capture_output=True, text=True, check=True)
