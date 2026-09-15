@@ -1,4 +1,44 @@
-/* Placeholder — full WhatsApp Web styling lands in Task 3.2. */
+/* WhatsApp History Importer — WhatsApp Web-inspired theme.
+   High contrast, large base font, system fonts only (no webfonts/network deps). */
+
+:root {
+  --wa-green: #00a884;
+  --wa-green-dark: #008069;
+  --wa-bg-app: #f0f2f5;
+  --wa-bg-panel: #efeae2;
+  --wa-bg-sidebar: #ffffff;
+  --wa-bubble-in: #f7f5f2;
+  --wa-bubble-out: #d9fdd3;
+  --wa-text-primary: #111b21;
+  --wa-text-secondary: #667781;
+  --wa-border: #d1d7db;
+  --wa-focus-ring: #00a884;
+  --wa-danger: #b00020;
+
+  --font-system:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-base: 16px;
+  --font-size-button: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--wa-text-primary);
+  background-color: var(--wa-bg-app);
+  line-height: 1.5;
+}
 
 .sr-only {
   position: absolute;
@@ -7,4 +47,282 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
+}
+
+a,
+button,
+[tabindex] {
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--wa-focus-ring);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+  font-size: var(--font-size-button);
+  color: #ffffff;
+  background-color: var(--wa-green);
+  border: none;
+  border-radius: 6px;
+  padding: 0.5em 1.25em;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: var(--wa-green-dark);
+}
+
+.app-header {
+  background-color: var(--wa-green-dark);
+  color: #ffffff;
+  padding: 0.75em 1.25em;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.25em;
+}
+
+#app {
+  height: calc(100% - 3.5em);
+}
+
+section[data-view] {
+  padding: 1.5em;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* --- Welcome / disclaimer / QR view --- */
+
+.disclaimer {
+  color: var(--wa-text-secondary);
+  background-color: var(--wa-bg-sidebar);
+  border: 1px solid var(--wa-border);
+  border-radius: 8px;
+  padding: 1em;
+}
+
+.qr-panel {
+  text-align: center;
+  margin-top: 1.5em;
+}
+
+.qr-image {
+  width: 260px;
+  height: 260px;
+  border: 1px solid var(--wa-border);
+  border-radius: 8px;
+  background-color: #ffffff;
+}
+
+.qr-instructions {
+  text-align: left;
+  max-width: 420px;
+  margin: 1.5em auto 0;
+  color: var(--wa-text-primary);
+}
+
+/* --- Sync progress view --- */
+
+.sync-progress {
+  width: 100%;
+  height: 1.25em;
+  accent-color: var(--wa-green);
+}
+
+.sync-counts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25em 1em;
+  margin-top: 1em;
+}
+
+.sync-counts dt {
+  color: var(--wa-text-secondary);
+}
+
+.sync-counts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* --- Conversations + chat view --- */
+
+section[data-view="chats"] {
+  max-width: none;
+  padding: 0;
+  height: 100%;
+}
+
+.chats-layout {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat-list {
+  width: 30%;
+  min-width: 260px;
+  max-width: 420px;
+  background-color: var(--wa-bg-sidebar);
+  border-right: 1px solid var(--wa-border);
+  overflow-y: auto;
+}
+
+.chat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.75em 1em;
+  cursor: pointer;
+  border-bottom: 1px solid var(--wa-border);
+}
+
+.chat-list-item:hover,
+.chat-list-item:focus-visible {
+  background-color: var(--wa-bg-app);
+}
+
+.chat-list-item[aria-selected="true"] {
+  background-color: var(--wa-bg-panel);
+}
+
+.chat-avatar {
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 50%;
+  background-color: var(--wa-green);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.chat-list-meta {
+  min-width: 0;
+}
+
+.chat-list-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-list-preview {
+  color: var(--wa-text-secondary);
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-list-timestamp {
+  margin-left: auto;
+  color: var(--wa-text-secondary);
+  font-size: 0.85em;
+  flex-shrink: 0;
+}
+
+.chat-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--wa-bg-panel);
+}
+
+.chat-view-empty {
+  margin: auto;
+  color: var(--wa-text-secondary);
+}
+
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.message {
+  max-width: 65%;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  color: var(--wa-text-primary);
+}
+
+.message-in {
+  align-self: flex-start;
+  background-color: var(--wa-bubble-in);
+  border-top-left-radius: 0;
+}
+
+.message-out {
+  align-self: flex-end;
+  background-color: var(--wa-bubble-out);
+  border-top-right-radius: 0;
+}
+
+.message-timestamp {
+  display: block;
+  font-size: 0.75em;
+  color: var(--wa-text-secondary);
+  margin-top: 0.25em;
+  text-align: right;
+}
+
+.message-media {
+  position: relative;
+  display: block;
+}
+
+.message-media img,
+.message-media video {
+  max-width: 100%;
+  border-radius: 6px;
+  display: block;
+}
+
+.message-media-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 2em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.message-audio {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.message-waveform {
+  flex: 1;
+  height: 2em;
+}
+
+.message-document {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.message-document-filename {
+  font-weight: 600;
+  word-break: break-word;
 }
