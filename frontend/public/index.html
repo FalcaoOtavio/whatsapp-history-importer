@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp History Importer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>WhatsApp History Importer</h1>
+  </header>
+
+  <main id="app">
+    <!-- View 1: Welcome + disclaimer + QR scan -->
+    <section data-view="welcome" id="view-welcome" aria-labelledby="welcome-heading">
+      <h2 id="welcome-heading">Bem-vindo</h2>
+      <p class="disclaimer">
+        Este aplicativo não é afiliado ao WhatsApp. Uso pessoal apenas.
+        Seus dados ficam no seu computador.
+      </p>
+      <div class="qr-panel">
+        <img id="qr-image" class="qr-image" alt="QR code para conectar o WhatsApp" src="" hidden />
+        <p id="qr-placeholder">Aguardando QR code…</p>
+        <ol class="qr-instructions">
+          <li>Abra o WhatsApp no seu celular</li>
+          <li>Toque em Menu → Aparelhos conectados</li>
+          <li>Toque em Conectar um aparelho</li>
+          <li>Aponte a câmera para o QR code acima</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- View 2: Sync progress -->
+    <section data-view="sync" id="view-sync" aria-labelledby="sync-heading" hidden>
+      <h2 id="sync-heading">Sincronizando…</h2>
+      <progress id="sync-progress" class="sync-progress" max="100" value="0"></progress>
+      <dl class="sync-counts">
+        <dt>Conversas</dt>
+        <dd id="sync-chat-count">0</dd>
+        <dt>Mensagens</dt>
+        <dd id="sync-message-count">0</dd>
+      </dl>
+    </section>
+
+    <!-- View 3: Conversations list + chat view -->
+    <section data-view="chats" id="view-chats" aria-labelledby="chats-heading" hidden>
+      <h2 id="chats-heading" class="sr-only">Conversas</h2>
+      <div class="chats-layout">
+        <aside id="chat-list" class="chat-list" aria-label="Lista de conversas"></aside>
+        <div id="chat-view" class="chat-view" aria-label="Conversa selecionada">
+          <p id="chat-view-empty" class="chat-view-empty">Selecione uma conversa</p>
+          <div id="message-list" class="message-list"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

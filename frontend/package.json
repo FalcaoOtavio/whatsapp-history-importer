@@ -1,0 +1,21 @@
+{
+  "name": "whatsapp-history-importer-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vanilla HTML/CSS/JS WhatsApp-Web-style UI, served by the Node sidecar",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint public tests --ext .js,.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "axe-core": "^4.10.0",
+    "eslint": "^8.57.1",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.1"
+  }
+}
