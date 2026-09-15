@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from launcher.bootstrap import (
     check_node_version,
     check_python_version,
+    ensure_ffmpeg,
     ensure_node_deps,
     ensure_venv,
 )
@@ -133,3 +134,36 @@ def test_ensure_venv_reinstalls_when_requirements_change(tmp_path: Path):
     second = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=MagicMock())
     assert second.ok is True
     assert runner.call_count == 2
+
+
+def test_ensure_ffmpeg_success(tmp_path: Path):
+    ffmpeg_file = tmp_path / "ffmpeg"
+    ffprobe_file = tmp_path / "ffprobe"
+    ffmpeg_file.write_text("binary")
+    ffprobe_file.write_text("binary")
+    fetcher = MagicMock(return_value=(str(ffmpeg_file), str(ffprobe_file)))
+
+    result = ensure_ffmpeg(fetcher=fetcher)
+
+    assert result.ok is True
+    assert result.ffmpeg_path == str(ffmpeg_file)
+    fetcher.assert_called_once()
+
+
+def test_ensure_ffmpeg_reports_ok_on_cached_fetcher_response():
+    # static_ffmpeg itself caches on disk and skips the download when the
+    # binaries already exist; here we just assert a successful fetcher
+    # response (cached or fresh) is reported as ok.
+    fetcher = MagicMock(return_value=("/bin/ffmpeg", "/bin/ffprobe"))
+    with patch("pathlib.Path.is_file", return_value=True):
+        result = ensure_ffmpeg(fetcher=fetcher)
+    assert result.ok is True
+
+
+def test_ensure_ffmpeg_falls_back_gracefully_on_download_failure():
+    fetcher = MagicMock(side_effect=RuntimeError("network unreachable"))
+
+    result = ensure_ffmpeg(fetcher=fetcher)
+
+    assert result.ok is False
+    assert "ffmpeg.org" in result.message

@@ -134,6 +134,50 @@ def ensure_venv(
     return CheckResult(ok=True, message="Ambiente virtual criado e dependências instaladas.")
 
 
+@dataclass
+class FfmpegResult(CheckResult):
+    ffmpeg_path: str | None = None
+    ffprobe_path: str | None = None
+
+
+def ensure_ffmpeg(fetcher=None) -> FfmpegResult:
+    """Ensure static ffmpeg/ffprobe binaries are present, downloading on demand.
+
+    Uses `static_ffmpeg`, which caches the binaries under its own data dir and
+    skips the download on subsequent calls if they already exist there.
+    `fetcher` is injectable for tests: a zero-arg callable returning
+    `(ffmpeg_path, ffprobe_path)`.
+    """
+    if fetcher is None:
+        from static_ffmpeg.run import get_or_fetch_platform_executables_else_raise
+
+        fetcher = get_or_fetch_platform_executables_else_raise
+
+    try:
+        ffmpeg_path, ffprobe_path = fetcher()
+    except Exception as exc:  # noqa: BLE001 - surface any download/network failure
+        return FfmpegResult(
+            ok=False,
+            message=f"Falha ao baixar o ffmpeg: {exc}. "
+            "Instale o ffmpeg manualmente em ffmpeg.org e reinicie o aplicativo.",
+        )
+
+    ffmpeg_file = Path(ffmpeg_path)
+    ffprobe_file = Path(ffprobe_path)
+    if not ffmpeg_file.is_file() or not ffprobe_file.is_file():
+        return FfmpegResult(
+            ok=False,
+            message="ffmpeg/ffprobe não encontrados após a tentativa de download.",
+        )
+
+    return FfmpegResult(
+        ok=True,
+        message="ffmpeg pronto.",
+        ffmpeg_path=str(ffmpeg_file),
+        ffprobe_path=str(ffprobe_file),
+    )
+
+
 def ensure_node_deps(runner=subprocess.run, backend_dir: Path = BACKEND_DIR) -> CheckResult:
     """Run `npm ci` in backend/ if node_modules is missing."""
     node_modules = backend_dir / "node_modules"
