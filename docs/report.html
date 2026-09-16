@@ -135,7 +135,7 @@
       </tr>
       <tr>
         <td>Backend: <code>tsc --noEmit</code>, ESLint, Vitest</td>
-        <td>0 erros, 0 avisos, suíte verde</td>
+        <td>0 erros, 0 avisos; 112 testes verdes (18 arquivos)</td>
       </tr>
       <tr>
         <td>Lançador: Pytest + Ruff</td>
@@ -157,6 +157,10 @@
       <tr>
         <td>Revisão de segurança (5 dimensões, achados verificados por refutação)</td>
         <td>13 achados confirmados — 0 críticos; todos corrigidos</td>
+      </tr>
+      <tr>
+        <td>Auditoria de dependências (<code>npm audit</code>)</td>
+        <td><code>sharp</code> atualizado; restantes são de desenvolvimento</td>
       </tr>
       <tr>
         <td>Teste manual completo com celular (parear, sincronizar, navegar)</td>
@@ -182,6 +186,13 @@
       marcador nunca mais batia e cada abertura do aplicativo repetia o <code>pip install</code> —
       cerca de 2min30 de espera antes da janela abrir. Agora o marcador guarda um hash do conteúdo:
       a segunda abertura leva 0,07s.
+    </p>
+    <p>
+      Por fim, a auditoria de dependências apontou duas falhas de memória nos decodificadores de
+      imagem usados pelo <code>sharp</code> (libvips e libheif). Elas importam neste aplicativo em
+      particular: as imagens decodificadas vêm do WhatsApp, escolhidas por quem enviou a mensagem.
+      O <code>sharp</code> foi atualizado para a versão 0.35.4. Os demais apontamentos são de
+      dependências de desenvolvimento (a cadeia do Vitest), que não entram no aplicativo final.
     </p>
 
     <h2>Limitações conhecidas</h2>
