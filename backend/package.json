@@ -22,7 +22,7 @@
     "express": "^4.21.0",
     "pino": "^9.4.0",
     "qrcode": "^1.5.4",
-    "sharp": "^0.33.5"
+    "sharp": "^0.35.4"
   },
   "optionalDependencies": {
     "mongodb": "^6.9.0",
