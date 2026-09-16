@@ -92,10 +92,14 @@ def check_prerequisites(version_info=None, runner=subprocess.run) -> list[CheckR
     return [check_python_version(version_info), check_node_version(runner)]
 
 
-def _venv_python(venv_dir: Path) -> Path:
+def venv_python(venv_dir: Path = VENV_DIR) -> Path:
     if sys.platform == "win32":
         return venv_dir / "Scripts" / "python.exe"
     return venv_dir / "bin" / "python"
+
+
+# Kept as a private alias: the name is used throughout this module.
+_venv_python = venv_python
 
 
 def ensure_venv(
