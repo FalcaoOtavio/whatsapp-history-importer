@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fireAndForget, logBackgroundError } from "./log.js";
 
 const AUTH_DIR = path.resolve(process.cwd(), "auth_info");
 
@@ -77,11 +78,23 @@ export function createBaileysClient(deps: BaileysClientDeps = {}): BaileysClient
       });
 
       socket.ev.on("creds.update", () => {
-        void authState.saveCreds();
+        // Detached write: a full disk or a permissions problem here must not
+        // become an unhandled rejection that takes the sidecar down.
+        fireAndForget("baileys:saveCreds", authState.saveCreds());
       });
 
       socket.ev.on("messaging-history.set", (payload: unknown) => {
-        for (const listener of historyListeners) listener(payload);
+        // Baileys invokes this from its own event emitter. Anything thrown by a
+        // listener - a DB write failing mid-batch, say - would propagate into
+        // the emitter and abort the remaining listeners along with the sync.
+        // Isolate each one so a single bad batch cannot end the import.
+        for (const listener of historyListeners) {
+          try {
+            listener(payload);
+          } catch (error) {
+            logBackgroundError("historySync:listener", error);
+          }
+        }
       });
 
       return socket;

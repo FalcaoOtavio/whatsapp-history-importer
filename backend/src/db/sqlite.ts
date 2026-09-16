@@ -41,7 +41,7 @@ export function getChat(db: SqliteDb, jid: string): Chat | undefined {
 export function listChats(db: SqliteDb, limit = 50, offset = 0): Chat[] {
   return db
     .prepare("SELECT * FROM chats ORDER BY last_message_at DESC LIMIT ? OFFSET ?")
-    .all(limit, offset) as Chat[];
+    .all(clampLimit(limit), Math.max(0, Math.trunc(offset) || 0)) as Chat[];
 }
 
 export function insertMessage(db: SqliteDb, message: Message): void {
@@ -69,18 +69,36 @@ export function getMessage(db: SqliteDb, id: string): Message | undefined {
  * Messages are inserted from history with both paths null - the bytes are
  * fetched afterwards (see media-downloader.ts), so this fills them in once the
  * download lands.
+ *
+ * `chatJid` is part of the WHERE clause on purpose. A WhatsApp `key.id` is only
+ * unique per conversation, and the sender picks it: a peer can reuse the id of
+ * a message in *another* chat, and this UPDATE would then point that unrelated
+ * message at the attacker's file. Matching on both columns keeps the write on
+ * the row the download was actually for.
  */
 export function setMediaPaths(
   db: SqliteDb,
   id: string,
+  chatJid: string,
   mediaPath: string | null,
   thumbPath: string | null,
 ): void {
-  db.prepare("UPDATE messages SET media_path = ?, media_thumb_path = ? WHERE id = ?").run(
-    mediaPath,
-    thumbPath,
-    id,
-  );
+  db.prepare(
+    "UPDATE messages SET media_path = ?, media_thumb_path = ? WHERE id = ? AND chat_jid = ?",
+  ).run(mediaPath, thumbPath, id, chatJid);
+}
+
+/** Page size ceiling: one response must not be able to pull the whole archive. */
+export const MAX_PAGE_SIZE = 500;
+
+/**
+ * SQLite reads a negative LIMIT as "no limit at all", so `?limit=-1` would make
+ * a single request serialise every message in the chat to JSON. The HTTP layer
+ * clamps too; this is the backstop for any other caller.
+ */
+export function clampLimit(value: number | undefined, fallback = 50): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(Math.trunc(value), 1), MAX_PAGE_SIZE);
 }
 
 export function listMessages(
@@ -88,7 +106,7 @@ export function listMessages(
   chatJid: string,
   opts: { since?: number; until?: number; limit?: number } = {},
 ): Message[] {
-  const limit = opts.limit ?? 50;
+  const limit = clampLimit(opts.limit);
   if (opts.since !== undefined) {
     return db
       .prepare(

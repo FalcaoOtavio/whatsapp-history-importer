@@ -34,6 +34,11 @@ jobs:
       - name: Lint (ruff)
         run: python -m ruff check launcher initial.py
 
+      # Formatting drifted once without CI noticing: `ruff check` does not
+      # enforce layout, only lint rules.
+      - name: Format (ruff)
+        run: python -m ruff format --check launcher initial.py
+
       - name: Test (pytest)
         run: python -m pytest launcher/tests -q
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -126,6 +127,33 @@ def test_ensure_venv_idempotent_when_up_to_date(tmp_path: Path):
     assert second.ok is True
     assert runner.call_count == 1  # not called again
     creator.assert_not_called()
+
+
+def test_ensure_venv_ignores_mtime_change_when_contents_are_identical(tmp_path: Path):
+    """Regression: iCloud Drive rewrites mtime on sync, which forced a reinstall.
+
+    The marker used to record st_mtime_ns. Syncing a file down rewrites its
+    mtime, and iCloud round-trips the timestamp through a float, so the value
+    came back slightly different for byte-identical content. Every launch from
+    this project's own iCloud location then re-ran `pip install` (~2.5 min).
+    """
+    venv_dir = tmp_path / ".venv"
+    venv_dir.mkdir()
+    req_file = tmp_path / "requirements.txt"
+    req_file.write_text("pywebview\n")
+    runner = MagicMock()
+
+    first = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=MagicMock())
+    assert first.ok is True
+    assert runner.call_count == 1
+
+    # Same bytes, different mtime - exactly what an iCloud sync leaves behind.
+    stat = req_file.stat()
+    os.utime(req_file, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1234))
+
+    second = ensure_venv(venv_dir=venv_dir, requirements_file=req_file, runner=runner, venv_creator=MagicMock())
+    assert second.ok is True
+    assert runner.call_count == 1  # contents unchanged -> no reinstall
 
 
 def test_ensure_venv_reinstalls_when_requirements_change(tmp_path: Path):

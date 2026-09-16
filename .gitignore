@@ -17,9 +17,10 @@ npm-debug.log*
 # App data (never commit personal WhatsApp data)
 auth_info/
 .media/
-*.sqlite
-*.sqlite3
-*.db
+# The -wal and -shm sidecars hold message text that has not been checkpointed
+# into the main file yet, so they leak just as much as the database itself.
+*.sqlite*
+*.db*
 data/
 logs/
 *.log

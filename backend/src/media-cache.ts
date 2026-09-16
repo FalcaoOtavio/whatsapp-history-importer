@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { assertInside, safeFileId } from "./safe-id.js";
 
 export type MediaKind = "image" | "video" | "audio";
 
@@ -48,11 +49,21 @@ function defaultExecRunner(cmd: string, args: string[]): Promise<void> {
   });
 }
 
-/** Ensures the cache directory exists and returns the thumbnail path for a message ID. */
+/**
+ * Ensures the cache directory exists and returns the thumbnail path for a
+ * message ID.
+ *
+ * These functions are exported and callable on their own, so the message ID is
+ * sanitised here too rather than trusting media-downloader to have done it: a
+ * raw `key.id` can contain `../` or start with `-`, which ffmpeg would read as
+ * an option instead of a filename.
+ */
 async function thumbPathFor(deps: MediaCacheDeps, msgId: string, ext: string): Promise<string> {
   const dir = resolveCacheDir(deps);
   await fs.mkdir(dir, { recursive: true });
-  return path.join(dir, `${msgId}.${ext}`);
+  const thumbPath = path.join(dir, `${safeFileId(msgId)}.${ext}`);
+  assertInside(dir, thumbPath);
+  return thumbPath;
 }
 
 /** Image: resize a source image buffer to a 200x200 webp thumbnail, cached on disk. */
@@ -78,7 +89,8 @@ export async function cacheVideoThumbnail(
   const run = deps.execRunner ?? defaultExecRunner;
   const dir = resolveCacheDir(deps);
   await fs.mkdir(dir, { recursive: true });
-  const framePath = path.join(dir, `${msgId}.frame.png`);
+  const framePath = path.join(dir, `${safeFileId(msgId)}.frame.png`);
+  assertInside(dir, framePath);
 
   await run(resolveFfmpeg(deps), [
     "-y",

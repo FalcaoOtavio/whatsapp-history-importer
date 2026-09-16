@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <title>WhatsApp History Importer — Relatório final</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 18mm 16mm;
+      }
+      body {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.38;
+        color: #16211c;
+        margin: 0;
+      }
+      h1 {
+        font-size: 17pt;
+        margin: 0 0 1mm;
+        color: #075e54;
+      }
+      .sub {
+        font-size: 9.5pt;
+        color: #55635c;
+        margin: 0 0 4mm;
+      }
+      h2 {
+        font-size: 11.5pt;
+        margin: 4.5mm 0 1.5mm;
+        padding-bottom: 0.8mm;
+        border-bottom: 0.4mm solid #25d366;
+        color: #075e54;
+      }
+      p {
+        margin: 0 0 2mm;
+      }
+      ul {
+        margin: 0 0 2mm;
+        padding-left: 5mm;
+      }
+      li {
+        margin-bottom: 0.8mm;
+      }
+      code {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 9.5pt;
+        background: #f0f3f1;
+        padding: 0 1mm;
+        border-radius: 1mm;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10pt;
+        margin-bottom: 2mm;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 1.1mm 2mm;
+        border-bottom: 0.2mm solid #dde3e0;
+        vertical-align: top;
+      }
+      th {
+        background: #f0f3f1;
+        font-weight: 600;
+      }
+      .two {
+        display: flex;
+        gap: 6mm;
+      }
+      .two > div {
+        flex: 1;
+      }
+      .ok::before {
+        content: "\2713\00a0";
+        color: #1a8a4e;
+        font-weight: 700;
+      }
+      .no::before {
+        content: "\2014\00a0";
+        color: #a8402f;
+        font-weight: 700;
+      }
+      footer {
+        margin-top: 4mm;
+        padding-top: 1.5mm;
+        border-top: 0.2mm solid #dde3e0;
+        font-size: 8.5pt;
+        color: #55635c;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WhatsApp History Importer — Relatório final</h1>
+    <p class="sub">
+      Versão 0.1.0 &middot; 15 de setembro de 2026 &middot;
+      github.com/FalcaoOtavio/whatsapp-history-importer &middot; Licença MIT
+    </p>
+
+    <h2>Resumo executivo</h2>
+    <p>
+      Aplicativo de desktop, de uso pessoal, que importa o histórico do seu próprio WhatsApp
+      (conversas individuais e grupos) para um banco local e o exibe em uma interface no estilo do
+      WhatsApp Web. Tudo roda na sua máquina: o servidor escuta apenas em <code>127.0.0.1</code>,
+      não há telemetria e nenhum dado sai do computador além da conexão com o próprio WhatsApp.
+    </p>
+    <p>
+      A arquitetura tem três partes: um lançador em Python (janela pywebview + agendador
+      APScheduler), um serviço Node/TypeScript que fala com o WhatsApp via Baileys e persiste em
+      SQLite, e um frontend em HTML/CSS/JS servido por esse serviço. O SQLite é a fonte canônica;
+      espelhamento para Postgres ou MongoDB é opcional e só liga quando <code>DATABASE_URL</code>
+      ou <code>MONGODB_URL</code> estão definidos.
+    </p>
+
+    <h2>O que o aplicativo faz</h2>
+    <ul>
+      <li>Instalação em um comando: <code>python3 initial.py</code> prepara o venv, instala as
+        dependências do Node, baixa o ffmpeg e abre a janela.</li>
+      <li>Pareamento por QR Code, como um dispositivo conectado do WhatsApp.</li>
+      <li>Importa os últimos 3 anos de histórico para um SQLite local.</li>
+      <li>Baixa as mídias (imagens, vídeos, áudios, documentos e figurinhas) e gera miniaturas e
+        formas de onda para os áudios.</li>
+      <li>Interface com lista de conversas, balões de mensagem e reprodução de mídia; tela de
+        progresso ao vivo durante a sincronização.</li>
+      <li>Sincronização automática diária às 01:00 (horário de Brasília).</li>
+    </ul>
+
+    <h2>Verificação</h2>
+    <table>
+      <tr>
+        <th>Verificação</th>
+        <th>Resultado</th>
+      </tr>
+      <tr>
+        <td>Backend: <code>tsc --noEmit</code>, ESLint, Vitest</td>
+        <td>0 erros, 0 avisos, suíte verde</td>
+      </tr>
+      <tr>
+        <td>Lançador: Pytest + Ruff</td>
+        <td>52 testes verdes; Ruff sem apontamentos (lint e formatação)</td>
+      </tr>
+      <tr>
+        <td>Instalação limpa (macOS, Apple Silicon)</td>
+        <td>OK — venv, <code>npm ci</code> e build a partir do zero</td>
+      </tr>
+      <tr>
+        <td>Instalação limpa (Linux, Debian 12 em contêiner)</td>
+        <td>OK — inclusive sem ffmpeg (<code>--skip-ffmpeg</code>)</td>
+      </tr>
+      <tr>
+        <td>Smoke test ponta a ponta do serviço</td>
+        <td><code>/health</code>, <code>/status</code> e <code>/chats</code> respondem; porta
+          atende só em loopback</td>
+      </tr>
+      <tr>
+        <td>Revisão de segurança (5 dimensões, achados verificados por refutação)</td>
+        <td>13 achados confirmados — 0 críticos; todos corrigidos</td>
+      </tr>
+      <tr>
+        <td>Teste manual completo com celular (parear, sincronizar, navegar)</td>
+        <td>Pendente — exige o seu aparelho</td>
+      </tr>
+    </table>
+
+    <h2>Correções de segurança desta versão</h2>
+    <p>
+      A revisão encontrou um defeito que deixava o aplicativo inteiro inoperante neste caminho de
+      instalação: a checagem de "sou o processo principal?" comparava um caminho de arquivo com uma
+      URL codificada, então em qualquer pasta com espaço ou <code>~</code> no nome — inclusive
+      "Mobile Documents" e "com~apple~CloudDocs" — o serviço saía silenciosamente sem abrir a porta.
+      Além dele: o identificador de mensagem, escolhido por quem envia, era usado como nome de
+      arquivo (permitia escrever fora da pasta de mídia); <code>?limit=-1</code> virava consulta sem
+      limite; erros de conexão ecoavam a senha do banco; e falhas em segundo plano derrubavam o
+      serviço em vez de serem registradas.
+    </p>
+    <p>
+      Um segundo defeito de instalação apareceu na verificação final: o marcador que diz
+      "as dependências já foram instaladas" guardava a data de modificação do
+      <code>requirements.txt</code>. O iCloud reescreve essa data ao sincronizar o arquivo, então o
+      marcador nunca mais batia e cada abertura do aplicativo repetia o <code>pip install</code> —
+      cerca de 2min30 de espera antes da janela abrir. Agora o marcador guarda um hash do conteúdo:
+      a segunda abertura leva 0,07s.
+    </p>
+
+    <h2>Limitações conhecidas</h2>
+    <ul>
+      <li>O WhatsApp expira os links de mídia depois de um tempo: anexos antigos podem não ser mais
+        baixáveis. A mensagem e o texto continuam preservados.</li>
+      <li>Sem ffmpeg não há miniaturas nem formas de onda; o resto funciona normalmente.</li>
+      <li>Não há botão de sincronização manual na interface: a sincronização acontece ao conectar e
+        no horário agendado.</li>
+      <li>Testado em macOS (Apple Silicon) e Linux (Debian 12, em contêiner). Windows não foi
+        verificado.</li>
+      <li>O histórico vem do que o WhatsApp envia ao dispositivo conectado; conversas muito antigas
+        podem não ser enviadas pelo servidor dele.</li>
+    </ul>
+
+    <h2>Como instalar e usar</h2>
+    <div class="two">
+      <div>
+        <p><strong>Instalar</strong></p>
+        <p>
+          <code>git clone https://github.com/FalcaoOtavio/whatsapp-history-importer.git</code><br />
+          <code>cd whatsapp-history-importer</code><br />
+          <code>python3 initial.py</code>
+        </p>
+        <p>Requer Python 3.11+ e Node.js 22+ (o Node 22 é exigido pelo
+          <code>better-sqlite3</code>).</p>
+      </div>
+      <div>
+        <p><strong>Usar (3 passos)</strong></p>
+        <ol style="margin: 0 0 2mm; padding-left: 5mm">
+          <li>A janela abre com um QR Code.</li>
+          <li>No celular: WhatsApp &rarr; Configurações &rarr; Dispositivos conectados &rarr;
+            Conectar dispositivo.</li>
+          <li>Aponte a câmera para o QR Code. A importação começa sozinha.</li>
+        </ol>
+        <p>Depois de pareado, a sessão fica salva em <code>auth_info/</code> e o aplicativo já abre
+          conectado.</p>
+      </div>
+    </div>
+
+    <footer>
+      Projeto independente, sem nenhuma relação com o WhatsApp LLC ou a Meta Platforms, Inc. Use
+      apenas com a sua própria conta. Licença MIT.
+    </footer>
+  </body>
+</html>

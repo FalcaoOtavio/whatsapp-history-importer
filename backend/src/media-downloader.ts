@@ -7,6 +7,8 @@ import { cacheMediaThumbnail, type MediaCacheDeps, type MediaKind } from "./medi
 import type { SqliteDb } from "./db/sqlite.js";
 import { setMediaPaths } from "./db/sqlite.js";
 import type { Message } from "./types.js";
+import { assertInside, safeFileId } from "./safe-id.js";
+import { logBackgroundError } from "./log.js";
 
 /**
  * Downloads the media attached to a message and records where it landed.
@@ -125,7 +127,10 @@ export async function downloadMessageMedia(
   const dir = deps.mediaDir ?? DEFAULT_MEDIA_DIR;
   await fsp.mkdir(dir, { recursive: true });
 
-  const mediaPath = path.join(dir, `${message.id}${extensionFor(message.media_mime)}`);
+  // message.id is sender-controlled: never let it be a path segment.
+  const fileId = safeFileId(message.id);
+  const mediaPath = path.join(dir, `${fileId}${extensionFor(message.media_mime)}`);
+  assertInside(dir, mediaPath);
   const download = deps.downloader ?? defaultDownloader;
 
   try {
@@ -144,7 +149,7 @@ export async function downloadMessageMedia(
   if (thumbKind) {
     const thumbnailer = deps.thumbnailer ?? cacheMediaThumbnail;
     try {
-      const result = await thumbnailer(thumbKind, message.id, mediaPath, {
+      const result = await thumbnailer(thumbKind, fileId, mediaPath, {
         cacheDir: dir,
         ...deps.cacheDeps,
       });
@@ -156,7 +161,7 @@ export async function downloadMessageMedia(
     }
   }
 
-  setMediaPaths(db, message.id, mediaPath, thumbPath);
+  setMediaPaths(db, message.id, message.chat_jid, mediaPath, thumbPath);
   return { mediaPath, thumbPath };
 }
 
@@ -186,9 +191,10 @@ export function createMediaQueue(db: SqliteDb, deps: MediaDownloaderDeps = {}): 
       const [message, raw] = queue.shift()!;
       try {
         await downloadMessageMedia(db, message, raw, deps);
-      } catch {
+      } catch (error) {
         // downloadMessageMedia already swallows per-message failures; this only
         // guards against a bug in it taking the whole queue down with it.
+        logBackgroundError("media:download", error);
       }
     }
     running = null;

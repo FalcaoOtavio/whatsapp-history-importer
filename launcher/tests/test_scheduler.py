@@ -91,9 +91,7 @@ def test_sync_failure_does_not_propagate():
 
 def test_shutdown_delegates_to_scheduler():
     fake_scheduler = MagicMock()
-    scheduler = SyncScheduler(
-        MagicMock(), scheduler_factory=MagicMock(return_value=fake_scheduler)
-    )
+    scheduler = SyncScheduler(MagicMock(), scheduler_factory=MagicMock(return_value=fake_scheduler))
     scheduler.start()
     scheduler.shutdown()
 
@@ -115,9 +113,7 @@ def test_next_run_message_uses_ptbr_prefix():
     fake_scheduler = MagicMock()
     fake_scheduler.add_job.return_value = fake_job
 
-    scheduler = SyncScheduler(
-        MagicMock(), scheduler_factory=MagicMock(return_value=fake_scheduler)
-    )
+    scheduler = SyncScheduler(MagicMock(), scheduler_factory=MagicMock(return_value=fake_scheduler))
     scheduler.start()
 
     message = scheduler.next_run_message()
@@ -129,9 +125,7 @@ def test_start_scheduler_helper_starts_and_returns():
     fake_scheduler = MagicMock()
     trigger_sync = MagicMock()
 
-    scheduler = start_scheduler(
-        trigger_sync, scheduler_factory=MagicMock(return_value=fake_scheduler)
-    )
+    scheduler = start_scheduler(trigger_sync, scheduler_factory=MagicMock(return_value=fake_scheduler))
 
     assert isinstance(scheduler, SyncScheduler)
     fake_scheduler.start.assert_called_once()

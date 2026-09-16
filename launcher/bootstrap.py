@@ -5,6 +5,7 @@ All user-facing strings are PT-BR (see the project's a11y/UX constraints).
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -81,8 +82,7 @@ def check_node_version(runner=subprocess.run) -> CheckResult:
     return CheckResult(
         ok=False,
         message=(
-            f"Node.js {result.stdout.strip()} é muito antigo. "
-            f"É necessário Node.js {MIN_NODE} ou mais recente."
+            f"Node.js {result.stdout.strip()} é muito antigo. É necessário Node.js {MIN_NODE} ou mais recente."
         ),
     )
 
@@ -107,14 +107,21 @@ def ensure_venv(
     """Create the venv and pip-install requirements if not already done.
 
     Idempotent: if the venv exists AND a marker matching the requirements file's
-    mtime+size is present, does nothing. Otherwise (re)installs requirements.
+    contents is present, does nothing. Otherwise (re)installs requirements.
     `venv_creator(venv_dir)` is injectable for tests; defaults to stdlib `venv`.
+
+    The marker holds a hash of the file's *contents*, not its mtime. iCloud Drive
+    (this project's own location) rewrites mtime when it syncs a file down, and
+    it stores the timestamp as a float, so `st_mtime_ns` comes back a few tens of
+    nanoseconds off what was recorded. An mtime-based marker therefore never
+    matched again and every single launch re-ran `pip install` - about two and a
+    half minutes of waiting before the window opened.
     """
     marker = venv_dir / ".requirements-installed"
     req_stamp = ""
     if requirements_file.is_file():
-        stat = requirements_file.stat()
-        req_stamp = f"{stat.st_mtime_ns}:{stat.st_size}"
+        digest = hashlib.sha256(requirements_file.read_bytes()).hexdigest()
+        req_stamp = f"sha256:{digest}"
 
     if venv_dir.is_dir() and marker.is_file() and marker.read_text() == req_stamp:
         return CheckResult(ok=True, message="Ambiente virtual já configurado e atualizado.")

@@ -21,7 +21,23 @@ export function mediaRouter(db: SqliteDb): Router {
 
     res.status(200);
     res.type(message.media_mime ?? "application/octet-stream");
-    fs.createReadStream(message.media_path).pipe(res);
+
+    const stream = fs.createReadStream(message.media_path);
+    // A read error after the file passed existsSync (deleted mid-request, bad
+    // permissions, I/O failure) emits on the stream, not on the response. With
+    // no listener that is an unhandled 'error' event, which crashes the whole
+    // sidecar. Close the connection instead and leave the archive running.
+    stream.on("error", () => {
+      if (!res.headersSent) {
+        res.status(404).json({ error: "media not found" });
+        return;
+      }
+      res.destroy();
+    });
+    // Client navigated away or aborted: stop reading, don't leak the fd.
+    res.on("close", () => stream.destroy());
+
+    stream.pipe(res);
   });
 
   return router;

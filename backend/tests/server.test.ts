@@ -1,5 +1,5 @@
 import request from "supertest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createServer, createServerHandle } from "../src/server.js";
 import { openDb, upsertChat, insertMessage } from "../src/db/sqlite.js";
 import type { BaileysClient } from "../src/baileys-client.js";
@@ -177,5 +177,38 @@ describe("server", () => {
     }
 
     expect(queued).toEqual(["img9"]);
+  });
+
+  it("clamps GET /messages?limit=-1 instead of returning the whole chat", async () => {
+    const db = openDb(":memory:");
+    upsertChat(db, makeChat("c@s.whatsapp.net"));
+    for (let i = 0; i < 5; i++) {
+      insertMessage(db, makeMessage(`m${i}`, "c@s.whatsapp.net"));
+    }
+
+    const app = createServer({ db, client: makeFakeClient() });
+    const res = await request(app).get("/messages?chatId=c@s.whatsapp.net&limit=-1");
+
+    expect(res.status).toBe(200);
+    expect(res.body.messages).toHaveLength(1);
+  });
+
+  it("answers 500 without a stack trace when a route throws", async () => {
+    const db = openDb(":memory:");
+    // A failing query is the realistic way a handler throws: a corrupt DB file,
+    // a locked database, a disk error. Express's default handler would put the
+    // stack trace - absolute paths included - in the response body.
+    db.prepare = () => {
+      throw new Error("SqliteError: database disk image is malformed at /Users/otaviofalcao/db");
+    };
+
+    const app = createServer({ db, client: makeFakeClient() });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await request(app).get("/chats");
+    spy.mockRestore();
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: "internal error" });
+    expect(res.text).not.toContain("/Users/otaviofalcao");
   });
 });
