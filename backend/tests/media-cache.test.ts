@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   cacheAudioWaveform,
   cacheImageThumbnail,
@@ -19,6 +19,16 @@ const itWithFfmpeg = FFMPEG_PATH ? it : it.skip;
 const FIXTURES = path.resolve(import.meta.dirname, "fixtures");
 
 let cacheDir: string;
+let sharp: typeof import("sharp").default;
+
+// sharp loads an 18 MB native libvips on first import. That is milliseconds once
+// the file is in the page cache, but a cold read - a fresh `npm ci` on CI, or a
+// checkout on iCloud Drive, where the dylib is evicted and must come back over
+// the network - can take minutes. Paying it here keeps it out of the per-test
+// budget below, which measures image work (single-digit ms), not module loading.
+beforeAll(async () => {
+  sharp = (await import("sharp")).default;
+}, 300_000);
 
 beforeEach(async () => {
   cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "media-cache-test-"));
@@ -38,7 +48,6 @@ describe("media-cache", () => {
     const stat = await fs.stat(thumbPath);
     expect(stat.size).toBeGreaterThan(0);
 
-    const sharp = (await import("sharp")).default;
     const metadata = await sharp(thumbPath).metadata();
     expect(metadata.format).toBe("webp");
     expect(metadata.width).toBe(200);
@@ -55,7 +64,6 @@ describe("media-cache", () => {
     const stat = await fs.stat(thumbPath);
     expect(stat.size).toBeGreaterThan(0);
 
-    const sharp = (await import("sharp")).default;
     const metadata = await sharp(thumbPath).metadata();
     expect(metadata.format).toBe("webp");
     expect(metadata.width).toBe(200);
@@ -72,7 +80,6 @@ describe("media-cache", () => {
     const stat = await fs.stat(thumbPath);
     expect(stat.size).toBeGreaterThan(0);
 
-    const sharp = (await import("sharp")).default;
     const metadata = await sharp(thumbPath).metadata();
     expect(metadata.format).toBe("png");
     expect(metadata.width).toBe(800);

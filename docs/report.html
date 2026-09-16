@@ -139,7 +139,7 @@
       </tr>
       <tr>
         <td>Lançador: Pytest + Ruff</td>
-        <td>52 testes verdes; Ruff sem apontamentos (lint e formatação)</td>
+        <td>58 testes verdes; Ruff sem apontamentos (lint e formatação)</td>
       </tr>
       <tr>
         <td>Instalação limpa (macOS, Apple Silicon)</td>
@@ -186,6 +186,12 @@
       marcador nunca mais batia e cada abertura do aplicativo repetia o <code>pip install</code> —
       cerca de 2min30 de espera antes da janela abrir. Agora o marcador guarda um hash do conteúdo:
       a segunda abertura leva 0,07s.
+    </p>
+    <p>
+      Um terceiro: o <code>initial.py</code> criava o ambiente virtual e instalava as dependências
+      nele, mas seguia rodando no Python original, que não as tem — o comando de instalação
+      documentado quebrava na etapa do ffmpeg. Agora o lançador passa a executar dentro do ambiente
+      virtual assim que ele fica pronto.
     </p>
     <p>
       Por fim, a auditoria de dependências apontou duas falhas de memória nos decodificadores de
